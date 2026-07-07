@@ -1,0 +1,32 @@
+# Build artifacts
+obj/
+bin/
+*.o
+*.d
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Debug
+*.core
+core
+
+# Media files
+*.mp3
+selena/
+mp3
+
+# FTXUI (external dependency)
+/tmp/FTXUI
+/tmp/ftxui-install
+
+# MiMoCode
+.mimocode/
