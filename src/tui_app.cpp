@@ -553,7 +553,7 @@ Element TuiApp::renderStatusBar() {
     return hbox({
         text(" " + m_statusMessage + " ") | color(Color::White) | bgcolor(Color::Blue),
         filler(),
-        text(" [q]Quit [Enter]Open/Edit [e]Edit [a]Add [f]Folder [Ctrl+S]Save [d]Discard ") |
+        text(" [q]Quit [Enter]Open/Edit [Space]Select [e]Edit [Del]Delete ") |
             color(Color::White) | bgcolor(Color::GrayDark),
     });
 }
@@ -893,6 +893,15 @@ void TuiApp::run() {
                 m_editing = true;
                 m_editFieldIndex = 0;
             }
+            updateStatusBar(); return true;
+        }
+
+        // Space: toggle multi-select on current row
+        if (event == Event::Character(' ') && m_selectedRow >= 0 && !m_editing) {
+            if (m_selectedRows.count(m_selectedRow))
+                m_selectedRows.erase(m_selectedRow);
+            else
+                m_selectedRows.insert(m_selectedRow);
             updateStatusBar(); return true;
         }
 
