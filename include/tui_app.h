@@ -40,6 +40,7 @@ private:
     void onApply();
     void onDiscardChanges();
     void onRemoveArt();
+    void onDeleteFile();
     void onToggleSelectAll();
     void updateStatusBar();
     std::vector<MP3File*> selectedFiles() const;
@@ -74,6 +75,7 @@ private:
     bool m_showAddFolder = false;
     bool m_showConfirmDiscard = false;
     bool m_showConfirmApply = false;
+    bool m_showConfirmDelete = false;
     bool m_showAbout = false;
     std::string m_inputPath;
 

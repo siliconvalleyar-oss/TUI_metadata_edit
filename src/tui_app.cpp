@@ -334,6 +334,11 @@ void TuiApp::onApply() {
     m_showConfirmApply = true;
 }
 
+void TuiApp::onDeleteFile() {
+    if (!selectedFile()) return;
+    m_showConfirmDelete = true;
+}
+
 // ======================================================================
 // File Table
 // ======================================================================
@@ -634,6 +639,39 @@ void TuiApp::run() {
                 }
                 return true;
             }
+
+            if (m_showConfirmDelete) {
+                if (event == Event::Character('y') || event == Event::Return) {
+                    auto *file = selectedFile();
+                    if (file) {
+                        std::string path = file->filePath();
+                        std::string name = file->fileName();
+                        // Remove from m_files
+                        for (auto it = m_files.begin(); it != m_files.end(); ++it) {
+                            if (it->get() == file) { m_files.erase(it); break; }
+                        }
+                        // Remove from m_entries
+                        for (auto it = m_entries.begin(); it != m_entries.end(); ++it) {
+                            if (!it->isDir && it->name == name) { m_entries.erase(it); break; }
+                        }
+                        // Delete from disk
+                        std::error_code ec;
+                        fs::remove(path, ec);
+                        // Adjust selection
+                        if (m_selectedRow >= (int)m_entries.size())
+                            m_selectedRow = (int)m_entries.size() - 1;
+                        m_showConfirmDelete = false;
+                        syncEditFields();
+                        m_toolbarMessage = "Deleted: " + name;
+                        updateStatusBar();
+                    }
+                    return true;
+                }
+                if (event == Event::Character('n') || event == Event::Escape) {
+                    m_showConfirmDelete = false; return true;
+                }
+                return true;
+            }
         }
 
         // ---- Mouse events ----
@@ -835,6 +873,7 @@ void TuiApp::run() {
             if (event == Event::Character('x')) { onClearAll(); return true; }
             if (event == Event::Character('s')) { onToggleSelectAll(); return true; }
             if (event == Event::Character('r')) { onRemoveArt(); return true; }
+            if (event == Event::Delete) { onDeleteFile(); return true; }
             if (event == Event::Character('e') && selectedFile()) {
                 m_editing = true; m_editFieldIndex = 0; return true;
             }
@@ -889,6 +928,19 @@ void TuiApp::run() {
                 text(" Save Changes ") | bold | color(Color::Green),
                 separator(),
                 text(" Save changes to " + std::to_string(modified) + " file(s)?"),
+                separator(),
+                text(" [y] Yes  [n] No") | dim,
+            }) | border | size(WIDTH, LESS_THAN, 50);
+            return dbox({content, modal | center});
+        }
+        if (m_showConfirmDelete) {
+            auto *file = selectedFile();
+            std::string fname = file ? file->fileName() : "file";
+            auto modal = vbox({
+                text(" Delete File ") | bold | color(Color::Red),
+                separator(),
+                text(" Delete \"" + fname + "\" from disk?"),
+                text(" This cannot be undone!"),
                 separator(),
                 text(" [y] Yes  [n] No") | dim,
             }) | border | size(WIDTH, LESS_THAN, 50);
