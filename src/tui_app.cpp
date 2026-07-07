@@ -596,7 +596,7 @@ void TuiApp::run() {
     auto wrapped = mainContainer | CatchEvent([this, &app](Event event) {
         // ---- Modal dialogs consume ALL events ----
         if (m_showAddFiles || m_showAddFolder ||
-            m_showConfirmDiscard || m_showConfirmApply) {
+            m_showConfirmDiscard || m_showConfirmApply || m_showConfirmDelete) {
 
             if (m_showAddFiles) {
                 if (event == Event::Escape) { m_showAddFiles = false; return true; }
