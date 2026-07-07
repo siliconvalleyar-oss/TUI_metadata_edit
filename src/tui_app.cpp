@@ -690,6 +690,17 @@ void TuiApp::run() {
             return true; // consume all other mouse events
         }
 
+        // ---- Global shortcuts: ALWAYS active, even during edit mode ----
+        if (event == Event::CtrlC || event == Event::Character('q')) {
+            app.Exit(); return true;
+        }
+        if (event == Event::CtrlS) {
+            onApply(); return true;
+        }
+        if (event == Event::Character('d') && !m_editing) {
+            onDiscardChanges(); return true;
+        }
+
         // ---- Edit mode: text input ----
         if (m_editing) {
             if (event == Event::Escape) { m_editing = false; return true; }
@@ -817,26 +828,17 @@ void TuiApp::run() {
             updateStatusBar(); return true;
         }
 
-        // 'e': enter edit mode
-        if (event == Event::Character('e') && selectedFile()) {
-            m_editing = true;
-            m_editFieldIndex = 0;
-            return true;
+        // Toolbar shortcuts (only when NOT editing)
+        if (!m_editing) {
+            if (event == Event::Character('a')) { onAddFiles(); return true; }
+            if (event == Event::Character('f')) { onAddFolder(); return true; }
+            if (event == Event::Character('x')) { onClearAll(); return true; }
+            if (event == Event::Character('s')) { onToggleSelectAll(); return true; }
+            if (event == Event::Character('r')) { onRemoveArt(); return true; }
+            if (event == Event::Character('e') && selectedFile()) {
+                m_editing = true; m_editFieldIndex = 0; return true;
+            }
         }
-
-        // Toolbar shortcuts
-        if (event == Event::Character('a')) { onAddFiles(); return true; }
-        if (event == Event::Character('f')) { onAddFolder(); return true; }
-        if (event == Event::Character('x')) { onClearAll(); return true; }
-        if (event == Event::Character('s')) { onToggleSelectAll(); return true; }
-        if (event == Event::Character('r')) { onRemoveArt(); return true; }
-
-        // Global
-        if (event == Event::CtrlC || event == Event::Character('q')) {
-            app.Exit(); return true;
-        }
-        if (event == Event::CtrlS) { onApply(); return true; }
-        if (event == Event::Character('d')) { onDiscardChanges(); return true; }
 
         return false;
     });
