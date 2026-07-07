@@ -341,104 +341,18 @@ void TuiApp::onApply() {
 Component TuiApp::buildTable() {
     return Renderer([this] {
         return renderFileTable() | reflect(m_tableBox);
-    }) | CatchEvent([this](Event event) {
-        int total = (int)m_entries.size();
-
-        if (event == Event::ArrowUp && m_selectedRow > 0) {
-            m_selectedRow--;
-            if (m_selectedRow < m_scrollOffset)
-                m_scrollOffset = m_selectedRow;
-            syncEditFields();
-            updateStatusBar();
-            return true;
-        }
-        if (event == Event::ArrowDown && m_selectedRow < total - 1) {
-            m_selectedRow++;
-            if (m_selectedRow >= m_scrollOffset + m_tableHeight)
-                m_scrollOffset = m_selectedRow - m_tableHeight + 1;
-            syncEditFields();
-            updateStatusBar();
-            return true;
-        }
-        if (event == Event::PageUp) {
-            m_selectedRow = std::max(0, m_selectedRow - m_tableHeight);
-            if (m_selectedRow < m_scrollOffset)
-                m_scrollOffset = m_selectedRow;
-            syncEditFields();
-            updateStatusBar();
-            return true;
-        }
-        if (event == Event::PageDown) {
-            m_selectedRow = std::min(total - 1, m_selectedRow + m_tableHeight);
-            if (m_selectedRow >= m_scrollOffset + m_tableHeight)
-                m_scrollOffset = m_selectedRow - m_tableHeight + 1;
-            syncEditFields();
-            updateStatusBar();
-            return true;
-        }
-        if (event == Event::Home) {
-            m_selectedRow = 0;
-            m_scrollOffset = 0;
-            syncEditFields();
-            updateStatusBar();
-            return true;
-        }
-        if (event == Event::End) {
-            if (!m_entries.empty()) {
-                m_selectedRow = total - 1;
-                if (m_selectedRow >= m_scrollOffset + m_tableHeight)
-                    m_scrollOffset = m_selectedRow - m_tableHeight + 1;
-            }
-            syncEditFields();
-            updateStatusBar();
-            return true;
-        }
-        if (event == Event::Return && m_selectedRow >= 0) {
-            enterEntry();
-            updateStatusBar();
-            return true;
-        }
-
-        // Mouse click - use reflect box for relative coordinates
-        if (event.is_mouse() && event.mouse().button == Mouse::Left &&
-            event.mouse().motion == Mouse::Pressed) {
-            int relY = event.mouse().y - m_tableBox.y_min - 2; // 2 rows header
-            int clickedRow = m_scrollOffset + relY;
-            if (clickedRow >= 0 && clickedRow < total) {
-                m_selectedRow = clickedRow;
-                syncEditFields();
-                updateStatusBar();
-                return true;
-            }
-        }
-
-        // Mouse wheel
-        if (event.is_mouse() && event.mouse().button == Mouse::WheelUp) {
-            if (m_selectedRow > 0) {
-                m_selectedRow--;
-                if (m_selectedRow < m_scrollOffset)
-                    m_scrollOffset = m_selectedRow;
-                syncEditFields();
-                updateStatusBar();
-            }
-            return true;
-        }
-        if (event.is_mouse() && event.mouse().button == Mouse::WheelDown) {
-            if (m_selectedRow < total - 1) {
-                m_selectedRow++;
-                if (m_selectedRow >= m_scrollOffset + m_tableHeight)
-                    m_scrollOffset = m_selectedRow - m_tableHeight + 1;
-                syncEditFields();
-                updateStatusBar();
-            }
-            return true;
-        }
-        return false;
     }) | border | size(WIDTH, EQUAL, 60);
 }
 
 Element TuiApp::renderFileTable() {
     Elements rows;
+
+    // Toolbar (visual only)
+    rows.push_back(hbox({
+        text(" MP3 Metadata Editor ") | bold | color(Color::Cyan),
+        separator(),
+        text(" [a]Add [f]Folder [x]Clear [s]SelectAll ") | dim,
+    }));
 
     // Header
     rows.push_back(hbox({
@@ -529,117 +443,6 @@ Element TuiApp::renderFileTable() {
 Component TuiApp::buildDetailPanel() {
     return Renderer([this] {
         return renderDetailPanel() | reflect(m_detailBox);
-    }) | CatchEvent([this](Event event) {
-        // Mouse click on detail panel fields
-        if (event.is_mouse() && event.mouse().button == Mouse::Left &&
-            event.mouse().motion == Mouse::Pressed && selectedFile()) {
-            int relY = event.mouse().y - m_detailBox.y_min;
-            // Fields start at row 5 (header + file info + separator + 3 header rows)
-            // Each field is 1 row: Title(5), Artist(6), Album(7), Year(8),
-            // Track(9), Genre(10), Composer(11), Comment(12)
-            int fieldStart = 5;
-            int fieldIdx = relY - fieldStart;
-            if (fieldIdx >= 0 && fieldIdx < 8) {
-                m_editFieldIndex = fieldIdx;
-                m_editing = true;
-                syncEditFields();
-                return true;
-            }
-            return true; // consume click even outside fields
-        }
-
-        if (!m_editing) {
-            if (event == Event::Return || event == Event::Character('e')) {
-                if (selectedFile()) {
-                    m_editing = true;
-                    m_editFieldIndex = 0;
-                }
-                return true;
-            }
-            if (event == Event::ArrowUp && m_editFieldIndex > 0) {
-                m_editFieldIndex--;
-                return true;
-            }
-            if (event == Event::ArrowDown && m_editFieldIndex < 7) {
-                m_editFieldIndex++;
-                return true;
-            }
-            if (event == Event::Character('r')) {
-                onRemoveArt();
-                return true;
-            }
-            return false;
-        }
-
-        // Edit mode
-        if (event == Event::Escape) {
-            m_editing = false;
-            return true;
-        }
-        if (event == Event::Tab || event == Event::ArrowDown) {
-            m_editFieldIndex = (m_editFieldIndex + 1) % 8;
-            return true;
-        }
-        if (event == Event::TabReverse || event == Event::ArrowUp) {
-            m_editFieldIndex = (m_editFieldIndex + 7) % 8;
-            return true;
-        }
-
-        // Apply edit to selected file(s)
-        auto applyField = [this](int fieldIdx, const std::string &value) {
-            for (auto *file : selectedFiles()) {
-                switch (fieldIdx) {
-                    case 0: file->setTitle(value); break;
-                    case 1: file->setArtist(value); break;
-                    case 2: file->setAlbum(value); break;
-                    case 3: file->setYear(value); break;
-                    case 4: file->setTrack(value); break;
-                    case 5: file->setGenre(value); break;
-                    case 6: file->setComposer(value); break;
-                    case 7: file->setComment(value); break;
-                }
-            }
-        };
-
-        if (event == Event::Return) {
-            std::string *fields[] = {
-                &m_editTitle, &m_editArtist, &m_editAlbum, &m_editYear,
-                &m_editTrack, &m_editGenre, &m_editComposer, &m_editComment
-            };
-            applyField(m_editFieldIndex, *fields[m_editFieldIndex]);
-
-            if (m_editFieldIndex == 0 && !m_editFileName.empty()) {
-                for (auto *file : selectedFiles())
-                    file->setNewFileName(m_editFileName);
-            }
-
-            updateStatusBar();
-            return true;
-        }
-
-        // Text input handling
-        std::string *fields[] = {
-            &m_editTitle, &m_editArtist, &m_editAlbum, &m_editYear,
-            &m_editTrack, &m_editGenre, &m_editComposer, &m_editComment
-        };
-
-        if (event == Event::Backspace) {
-            auto &field = *fields[m_editFieldIndex];
-            if (!field.empty()) {
-                field.pop_back();
-                applyField(m_editFieldIndex, field);
-            }
-            return true;
-        }
-
-        if (event.is_character()) {
-            auto &field = *fields[m_editFieldIndex];
-            field += event.character();
-            applyField(m_editFieldIndex, field);
-            return true;
-        }
-
-        return false;
     }) | border | size(WIDTH, EQUAL, 50);
 }
 
@@ -726,7 +529,7 @@ Element TuiApp::renderStatusBar() {
     return hbox({
         text(" " + m_statusMessage + " ") | color(Color::White) | bgcolor(Color::Blue),
         filler(),
-        text(" [q]Quit [Enter]Open [e]Edit [Ctrl+S]Save ") |
+        text(" [q]Quit [Enter]Open/Edit [e]Edit [a]Add [f]Folder [Ctrl+S]Save [d]Discard ") |
             color(Color::White) | bgcolor(Color::GrayDark),
     });
 }
@@ -743,16 +546,13 @@ void TuiApp::run() {
 
     updateStatusBar();
 
-    auto toolbar = buildToolbar();
+    // Build components - toolbar is VISUAL ONLY, not in focus chain
     auto table = buildTable();
     auto detail = buildDetailPanel();
     auto status = buildStatusBar();
 
-    // Left panel: toolbar + table
-    auto leftPanel = Container::Vertical({
-        toolbar,
-        table,
-    });
+    // Left panel: just the table (toolbar is rendered inside table)
+    auto leftPanel = table;
 
     // Right panel: detail
     auto rightPanel = detail;
@@ -765,82 +565,54 @@ void TuiApp::run() {
         &splitSize
     );
 
-    // Full layout
-    auto fullLayout = Container::Vertical({
-        mainContainer,
-        status,
-    });
-
     auto app = App::Fullscreen();
 
-    // Wrap with global event handling
-    auto wrapped = fullLayout | CatchEvent([this, &app](Event event) {
-        // Modal dialogs consume ALL events
+    // Single event handler for ALL keyboard/mouse events
+    // This is the ONLY place that processes user input
+    auto wrapped = mainContainer | CatchEvent([this, &app](Event event) {
+        // ---- Modal dialogs consume ALL events ----
         if (m_showAddFiles || m_showAddFolder ||
             m_showConfirmDiscard || m_showConfirmApply) {
 
             if (m_showAddFiles) {
-                if (event == Event::Escape) {
-                    m_showAddFiles = false;
-                    return true;
-                }
+                if (event == Event::Escape) { m_showAddFiles = false; return true; }
                 if (event == Event::Backspace && !m_inputPath.empty()) {
-                    m_inputPath.pop_back();
-                    return true;
+                    m_inputPath.pop_back(); return true;
                 }
                 if (event == Event::Return) {
                     std::istringstream iss(m_inputPath);
                     std::string token;
-                    while (iss >> token)
-                        loadFile(token);
-                    m_showAddFiles = false;
-                    m_inputPath.clear();
-                    updateStatusBar();
-                    return true;
+                    while (iss >> token) loadFile(token);
+                    m_showAddFiles = false; m_inputPath.clear();
+                    updateStatusBar(); return true;
                 }
-                if (event.is_character()) {
-                    m_inputPath += event.character();
-                    return true;
-                }
+                if (event.is_character()) { m_inputPath += event.character(); return true; }
                 return true;
             }
 
             if (m_showAddFolder) {
-                if (event == Event::Escape) {
-                    m_showAddFolder = false;
-                    return true;
-                }
+                if (event == Event::Escape) { m_showAddFolder = false; return true; }
                 if (event == Event::Backspace && !m_inputPath.empty()) {
-                    m_inputPath.pop_back();
-                    return true;
+                    m_inputPath.pop_back(); return true;
                 }
                 if (event == Event::Return) {
                     browseDirectory(m_inputPath);
-                    m_showAddFolder = false;
-                    m_inputPath.clear();
-                    updateStatusBar();
-                    return true;
+                    m_showAddFolder = false; m_inputPath.clear();
+                    updateStatusBar(); return true;
                 }
-                if (event.is_character()) {
-                    m_inputPath += event.character();
-                    return true;
-                }
+                if (event.is_character()) { m_inputPath += event.character(); return true; }
                 return true;
             }
 
             if (m_showConfirmDiscard) {
                 if (event == Event::Character('y') || event == Event::Return) {
-                    for (auto &f : m_files)
-                        if (f->isModified()) f->discardChanges();
+                    for (auto &f : m_files) if (f->isModified()) f->discardChanges();
                     m_showConfirmDiscard = false;
                     m_toolbarMessage = "Changes discarded.";
-                    syncEditFields();
-                    updateStatusBar();
-                    return true;
+                    syncEditFields(); updateStatusBar(); return true;
                 }
                 if (event == Event::Character('n') || event == Event::Escape) {
-                    m_showConfirmDiscard = false;
-                    return true;
+                    m_showConfirmDiscard = false; return true;
                 }
                 return true;
             }
@@ -849,61 +621,226 @@ void TuiApp::run() {
                 if (event == Event::Character('y') || event == Event::Return) {
                     int success = 0, failed = 0;
                     for (auto &f : m_files) {
-                        if (f->isModified()) {
-                            if (f->save()) success++;
-                            else failed++;
-                        }
+                        if (f->isModified()) { if (f->save()) success++; else failed++; }
                     }
                     m_showConfirmApply = false;
                     std::ostringstream oss;
                     oss << "Saved: " << success << " ok, " << failed << " failed.";
                     m_toolbarMessage = oss.str();
-                    syncEditFields();
-                    updateStatusBar();
-                    return true;
+                    syncEditFields(); updateStatusBar(); return true;
                 }
                 if (event == Event::Character('n') || event == Event::Escape) {
-                    m_showConfirmApply = false;
-                    return true;
+                    m_showConfirmApply = false; return true;
                 }
                 return true;
             }
         }
 
-        // Global shortcuts - NOT when editing text
-        if (!m_editing) {
-            if (event == Event::CtrlC || event == Event::Character('q')) {
-                app.Exit();
-                return true;
-            }
-            if (event == Event::CtrlS) {
-                onApply();
-                return true;
-            }
-            if (event == Event::Character('e')) {
-                if (selectedFile()) {
-                    m_editing = true;
-                    m_editFieldIndex = 0;
+        // ---- Mouse events ----
+        if (event.is_mouse()) {
+            auto &m = event.mouse();
+
+            // Click on table: select row using reflect box
+            if (m.button == Mouse::Left && m.motion == Mouse::Pressed) {
+                int relY = m.y - m_tableBox.y_min - 3; // 3 rows: toolbar + header + separator
+                int clickedRow = m_scrollOffset + relY;
+                if (clickedRow >= 0 && clickedRow < (int)m_entries.size()) {
+                    m_selectedRow = clickedRow;
+                    syncEditFields(); updateStatusBar(); return true;
+                }
+                // Click on detail panel: enter edit on field
+                if (m.x >= m_detailBox.x_min && m.x <= m_detailBox.x_max &&
+                    m.y >= m_detailBox.y_min && m.y <= m_detailBox.y_max) {
+                    if (selectedFile()) {
+                        int relDY = m.y - m_detailBox.y_min;
+                        int fieldIdx = relDY - 5; // header rows
+                        if (fieldIdx >= 0 && fieldIdx < 8) {
+                            m_editFieldIndex = fieldIdx;
+                            m_editing = true;
+                        }
+                    }
+                    return true;
                 }
                 return true;
             }
-            if (event == Event::Character('d')) {
-                onDiscardChanges();
+
+            // Mouse wheel
+            if (m.button == Mouse::WheelUp) {
+                if (m_selectedRow > 0) {
+                    m_selectedRow--;
+                    if (m_selectedRow < m_scrollOffset) m_scrollOffset = m_selectedRow;
+                    syncEditFields(); updateStatusBar();
+                }
                 return true;
             }
-            if (event == Event::Character('r')) {
-                onRemoveArt();
+            if (m.button == Mouse::WheelDown) {
+                if (m_selectedRow < (int)m_entries.size() - 1) {
+                    m_selectedRow++;
+                    if (m_selectedRow >= m_scrollOffset + m_tableHeight)
+                        m_scrollOffset = m_selectedRow - m_tableHeight + 1;
+                    syncEditFields(); updateStatusBar();
+                }
                 return true;
             }
+            return true; // consume all other mouse events
         }
+
+        // ---- Edit mode: text input ----
+        if (m_editing) {
+            if (event == Event::Escape) { m_editing = false; return true; }
+            if (event == Event::Tab || event == Event::ArrowDown) {
+                m_editFieldIndex = (m_editFieldIndex + 1) % 8; return true;
+            }
+            if (event == Event::TabReverse || event == Event::ArrowUp) {
+                m_editFieldIndex = (m_editFieldIndex + 7) % 8; return true;
+            }
+            if (event == Event::Return) {
+                // Apply current field and move to next
+                std::string *fields[] = {
+                    &m_editTitle, &m_editArtist, &m_editAlbum, &m_editYear,
+                    &m_editTrack, &m_editGenre, &m_editComposer, &m_editComment
+                };
+                for (auto *file : selectedFiles()) {
+                    switch (m_editFieldIndex) {
+                        case 0: file->setTitle(*fields[0]); break;
+                        case 1: file->setArtist(*fields[1]); break;
+                        case 2: file->setAlbum(*fields[2]); break;
+                        case 3: file->setYear(*fields[3]); break;
+                        case 4: file->setTrack(*fields[4]); break;
+                        case 5: file->setGenre(*fields[5]); break;
+                        case 6: file->setComposer(*fields[6]); break;
+                        case 7: file->setComment(*fields[7]); break;
+                    }
+                }
+                m_editFieldIndex = (m_editFieldIndex + 1) % 8;
+                return true;
+            }
+            if (event == Event::Backspace) {
+                std::string *fields[] = {
+                    &m_editTitle, &m_editArtist, &m_editAlbum, &m_editYear,
+                    &m_editTrack, &m_editGenre, &m_editComposer, &m_editComment
+                };
+                auto &field = *fields[m_editFieldIndex];
+                if (!field.empty()) {
+                    field.pop_back();
+                    for (auto *file : selectedFiles()) {
+                        switch (m_editFieldIndex) {
+                            case 0: file->setTitle(field); break;
+                            case 1: file->setArtist(field); break;
+                            case 2: file->setAlbum(field); break;
+                            case 3: file->setYear(field); break;
+                            case 4: file->setTrack(field); break;
+                            case 5: file->setGenre(field); break;
+                            case 6: file->setComposer(field); break;
+                            case 7: file->setComment(field); break;
+                        }
+                    }
+                }
+                return true;
+            }
+            if (event.is_character()) {
+                std::string *fields[] = {
+                    &m_editTitle, &m_editArtist, &m_editAlbum, &m_editYear,
+                    &m_editTrack, &m_editGenre, &m_editComposer, &m_editComment
+                };
+                auto &field = *fields[m_editFieldIndex];
+                field += event.character();
+                for (auto *file : selectedFiles()) {
+                    switch (m_editFieldIndex) {
+                        case 0: file->setTitle(field); break;
+                        case 1: file->setArtist(field); break;
+                        case 2: file->setAlbum(field); break;
+                        case 3: file->setYear(field); break;
+                        case 4: file->setTrack(field); break;
+                        case 5: file->setGenre(field); break;
+                        case 6: file->setComposer(field); break;
+                        case 7: file->setComment(field); break;
+                    }
+                }
+                return true;
+            }
+            return true; // consume all in edit mode
+        }
+
+        // ---- Navigation mode ----
+        int total = (int)m_entries.size();
+
+        if (event == Event::ArrowUp && m_selectedRow > 0) {
+            m_selectedRow--;
+            if (m_selectedRow < m_scrollOffset) m_scrollOffset = m_selectedRow;
+            syncEditFields(); updateStatusBar(); return true;
+        }
+        if (event == Event::ArrowDown && m_selectedRow < total - 1) {
+            m_selectedRow++;
+            if (m_selectedRow >= m_scrollOffset + m_tableHeight)
+                m_scrollOffset = m_selectedRow - m_tableHeight + 1;
+            syncEditFields(); updateStatusBar(); return true;
+        }
+        if (event == Event::PageUp) {
+            m_selectedRow = std::max(0, m_selectedRow - m_tableHeight);
+            if (m_selectedRow < m_scrollOffset) m_scrollOffset = m_selectedRow;
+            syncEditFields(); updateStatusBar(); return true;
+        }
+        if (event == Event::PageDown) {
+            m_selectedRow = std::min(total - 1, m_selectedRow + m_tableHeight);
+            if (m_selectedRow >= m_scrollOffset + m_tableHeight)
+                m_scrollOffset = m_selectedRow - m_tableHeight + 1;
+            syncEditFields(); updateStatusBar(); return true;
+        }
+        if (event == Event::Home) {
+            m_selectedRow = 0; m_scrollOffset = 0;
+            syncEditFields(); updateStatusBar(); return true;
+        }
+        if (event == Event::End) {
+            if (total > 0) {
+                m_selectedRow = total - 1;
+                if (m_selectedRow >= m_scrollOffset + m_tableHeight)
+                    m_scrollOffset = m_selectedRow - m_tableHeight + 1;
+            }
+            syncEditFields(); updateStatusBar(); return true;
+        }
+
+        // Enter: open dir or enter edit mode
+        if (event == Event::Return && m_selectedRow >= 0) {
+            const DirEntry &e = m_entries[m_selectedRow];
+            if (e.isDir) {
+                enterEntry(); // navigate into directory
+            } else if (selectedFile()) {
+                m_editing = true;
+                m_editFieldIndex = 0;
+            }
+            updateStatusBar(); return true;
+        }
+
+        // 'e': enter edit mode
+        if (event == Event::Character('e') && selectedFile()) {
+            m_editing = true;
+            m_editFieldIndex = 0;
+            return true;
+        }
+
+        // Toolbar shortcuts
+        if (event == Event::Character('a')) { onAddFiles(); return true; }
+        if (event == Event::Character('f')) { onAddFolder(); return true; }
+        if (event == Event::Character('x')) { onClearAll(); return true; }
+        if (event == Event::Character('s')) { onToggleSelectAll(); return true; }
+        if (event == Event::Character('r')) { onRemoveArt(); return true; }
+
+        // Global
+        if (event == Event::CtrlC || event == Event::Character('q')) {
+            app.Exit(); return true;
+        }
+        if (event == Event::CtrlS) { onApply(); return true; }
+        if (event == Event::Character('d')) { onDiscardChanges(); return true; }
 
         return false;
     });
 
-    // Custom renderer for modals
-    auto modalRenderer = Renderer(wrapped, [this, wrapped] {
+    // Render: toolbar is visual-only, rendered inside the table area
+    auto fullRenderer = Renderer(wrapped, [this, wrapped] {
         auto content = wrapped->Render();
 
+        // Overlay modals
         if (m_showAddFiles) {
             auto modal = vbox({
                 text(" Add MP3 Files ") | bold | color(Color::Cyan),
@@ -913,13 +850,8 @@ void TuiApp::run() {
                 separator(),
                 text(" [Enter] Load  [Esc] Cancel") | dim,
             }) | border | size(WIDTH, LESS_THAN, 60);
-
-            return dbox({
-                content,
-                modal | center,
-            });
+            return dbox({content, modal | center});
         }
-
         if (m_showAddFolder) {
             auto modal = vbox({
                 text(" Add Folder ") | bold | color(Color::Cyan),
@@ -929,18 +861,11 @@ void TuiApp::run() {
                 separator(),
                 text(" [Enter] Load  [Esc] Cancel") | dim,
             }) | border | size(WIDTH, LESS_THAN, 60);
-
-            return dbox({
-                content,
-                modal | center,
-            });
+            return dbox({content, modal | center});
         }
-
         if (m_showConfirmDiscard) {
             int modified = 0;
-            for (auto &f : m_files)
-                if (f->isModified()) modified++;
-
+            for (auto &f : m_files) if (f->isModified()) modified++;
             auto modal = vbox({
                 text(" Discard Changes ") | bold | color(Color::Red),
                 separator(),
@@ -948,18 +873,11 @@ void TuiApp::run() {
                 separator(),
                 text(" [y] Yes  [n] No") | dim,
             }) | border | size(WIDTH, LESS_THAN, 50);
-
-            return dbox({
-                content,
-                modal | center,
-            });
+            return dbox({content, modal | center});
         }
-
         if (m_showConfirmApply) {
             int modified = 0;
-            for (auto &f : m_files)
-                if (f->isModified()) modified++;
-
+            for (auto &f : m_files) if (f->isModified()) modified++;
             auto modal = vbox({
                 text(" Save Changes ") | bold | color(Color::Green),
                 separator(),
@@ -967,15 +885,10 @@ void TuiApp::run() {
                 separator(),
                 text(" [y] Yes  [n] No") | dim,
             }) | border | size(WIDTH, LESS_THAN, 50);
-
-            return dbox({
-                content,
-                modal | center,
-            });
+            return dbox({content, modal | center});
         }
-
         return content;
     });
 
-    app.Loop(modalRenderer);
+    app.Loop(fullRenderer);
 }
