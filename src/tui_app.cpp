@@ -104,6 +104,7 @@ void TuiApp::browseDirectory(const std::string &dir) {
     m_entries.clear();
     m_files.clear();
     m_selectedRow = -1;
+    m_selectedRows.clear();
     m_scrollOffset = 0;
 
     // Add parent directory entry (unless at root)
@@ -152,13 +153,31 @@ MP3File* TuiApp::selectedFile() const {
         return nullptr;
     const DirEntry &e = m_entries[m_selectedRow];
     if (e.isDir) return nullptr;
-
-    // Find matching file by name
     for (auto &f : m_files) {
         if (f->fileName() == e.name)
             return f.get();
     }
     return nullptr;
+}
+
+std::vector<MP3File*> TuiApp::selectedFiles() const {
+    std::vector<MP3File*> sel;
+    // If multi-select is active, use all selected rows
+    if (!m_selectedRows.empty()) {
+        for (int idx : m_selectedRows) {
+            if (idx < 0 || idx >= (int)m_entries.size()) continue;
+            const DirEntry &e = m_entries[idx];
+            if (e.isDir) continue;
+            for (auto &f : m_files) {
+                if (f->fileName() == e.name) { sel.push_back(f.get()); break; }
+            }
+        }
+    } else if (m_selectedRow >= 0 && m_selectedRow < (int)m_entries.size()) {
+        // Fallback to single selection
+        auto *f = selectedFile();
+        if (f) sel.push_back(f);
+    }
+    return sel;
 }
 
 void TuiApp::enterEntry() {
@@ -220,13 +239,6 @@ void TuiApp::syncEditFields() {
     m_editFileName = file->fileName();
 }
 
-std::vector<MP3File*> TuiApp::selectedFiles() const {
-    std::vector<MP3File*> sel;
-    auto *f = selectedFile();
-    if (f) sel.push_back(f);
-    return sel;
-}
-
 void TuiApp::updateStatusBar() {
     int totalEntries = m_entries.size();
     int modified = 0;
@@ -238,7 +250,10 @@ void TuiApp::updateStatusBar() {
     oss << " | " << totalEntries << " items";
     if (modified > 0)
         oss << " | Modified: " << modified;
-    if (m_selectedRow >= 0)
+    int selCount = (int)m_selectedRows.size();
+    if (selCount > 1)
+        oss << " | Selected: " << selCount;
+    else if (m_selectedRow >= 0)
         oss << " | [" << (m_selectedRow + 1) << "/" << totalEntries << "]";
     m_statusMessage = oss.str();
 }
@@ -417,10 +432,14 @@ Element TuiApp::renderFileTable() {
             text(year) | size(WIDTH, EQUAL, 5),
         });
 
+        bool multiSelected = m_selectedRows.count(i) > 0;
+
         if (rowColor != Color::Default)
             row = row | color(rowColor);
         if (selected)
             row = row | inverted;
+        else if (multiSelected)
+            row = row | color(Color::Cyan);
 
         rows.push_back(row);
     }
@@ -678,17 +697,28 @@ void TuiApp::run() {
         if (event.is_mouse()) {
             auto &m = event.mouse();
 
-            // Click on table: select row, open dirs immediately
+            // Click on table: select row, Ctrl+Click for multi-select
             if (m.button == Mouse::Left && m.motion == Mouse::Pressed) {
                 int relY = m.y - m_tableBox.y_min - 3; // 3 rows: toolbar + header + separator
                 int clickedRow = m_scrollOffset + relY;
                 if (clickedRow >= 0 && clickedRow < (int)m_entries.size()) {
-                    m_selectedRow = clickedRow;
-                    syncEditFields();
-                    // If clicked on a directory, navigate into it
-                    if (m_entries[m_selectedRow].isDir) {
-                        enterEntry();
+                    // Ctrl+Click: toggle multi-select
+                    if (m.control) {
+                        if (m_selectedRows.count(clickedRow))
+                            m_selectedRows.erase(clickedRow);
+                        else
+                            m_selectedRows.insert(clickedRow);
+                        m_selectedRow = clickedRow;
+                    } else {
+                        // Normal click: single select (clear multi-select)
+                        m_selectedRows.clear();
+                        m_selectedRow = clickedRow;
+                        // If clicked on a directory, navigate into it
+                        if (m_entries[m_selectedRow].isDir) {
+                            enterEntry();
+                        }
                     }
+                    syncEditFields();
                     updateStatusBar(); return true;
                 }
                 // Click on detail panel: enter edit on field

@@ -5,6 +5,7 @@
 #include <ftxui/dom/elements.hpp>
 #include <ftxui/screen/box.hpp>
 #include <memory>
+#include <set>
 #include <string>
 #include <vector>
 #include "mp3file.h"
@@ -53,6 +54,7 @@ private:
 
     std::vector<std::unique_ptr<MP3File>> m_files;
     int m_selectedRow = -1;
+    std::set<int> m_selectedRows; // multi-select with Ctrl+Click
     int m_scrollOffset = 0;
     int m_tableHeight = 20;
     bool m_selectAll = false;
