@@ -3,6 +3,7 @@
 
 #include <ftxui/component/component.hpp>
 #include <ftxui/dom/elements.hpp>
+#include <ftxui/screen/box.hpp>
 #include <memory>
 #include <string>
 #include <vector>
@@ -79,6 +80,9 @@ private:
     // File browser state
     std::string m_currentDir;
     std::vector<DirEntry> m_entries;
+
+    ftxui::Box m_tableBox;
+    ftxui::Box m_detailBox;
 
     ftxui::Component m_component;
     ftxui::Component m_toolbarComponent;

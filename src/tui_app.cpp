@@ -340,13 +340,12 @@ void TuiApp::onApply() {
 
 Component TuiApp::buildTable() {
     return Renderer([this] {
-        return renderFileTable();
+        return renderFileTable() | reflect(m_tableBox);
     }) | CatchEvent([this](Event event) {
         int total = (int)m_entries.size();
 
         if (event == Event::ArrowUp && m_selectedRow > 0) {
             m_selectedRow--;
-            // Scroll up if needed
             if (m_selectedRow < m_scrollOffset)
                 m_scrollOffset = m_selectedRow;
             syncEditFields();
@@ -355,7 +354,6 @@ Component TuiApp::buildTable() {
         }
         if (event == Event::ArrowDown && m_selectedRow < total - 1) {
             m_selectedRow++;
-            // Scroll down if needed
             if (m_selectedRow >= m_scrollOffset + m_tableHeight)
                 m_scrollOffset = m_selectedRow - m_tableHeight + 1;
             syncEditFields();
@@ -400,12 +398,12 @@ Component TuiApp::buildTable() {
             updateStatusBar();
             return true;
         }
-        // Mouse support
+
+        // Mouse click - use reflect box for relative coordinates
         if (event.is_mouse() && event.mouse().button == Mouse::Left &&
             event.mouse().motion == Mouse::Pressed) {
-            int mouseY = event.mouse().y;
-            // Account for header (2 rows: header + separator)
-            int clickedRow = m_scrollOffset + (mouseY - 2);
+            int relY = event.mouse().y - m_tableBox.y_min - 2; // 2 rows header
+            int clickedRow = m_scrollOffset + relY;
             if (clickedRow >= 0 && clickedRow < total) {
                 m_selectedRow = clickedRow;
                 syncEditFields();
@@ -413,6 +411,7 @@ Component TuiApp::buildTable() {
                 return true;
             }
         }
+
         // Mouse wheel
         if (event.is_mouse() && event.mouse().button == Mouse::WheelUp) {
             if (m_selectedRow > 0) {
@@ -529,8 +528,26 @@ Element TuiApp::renderFileTable() {
 
 Component TuiApp::buildDetailPanel() {
     return Renderer([this] {
-        return renderDetailPanel();
+        return renderDetailPanel() | reflect(m_detailBox);
     }) | CatchEvent([this](Event event) {
+        // Mouse click on detail panel fields
+        if (event.is_mouse() && event.mouse().button == Mouse::Left &&
+            event.mouse().motion == Mouse::Pressed && selectedFile()) {
+            int relY = event.mouse().y - m_detailBox.y_min;
+            // Fields start at row 5 (header + file info + separator + 3 header rows)
+            // Each field is 1 row: Title(5), Artist(6), Album(7), Year(8),
+            // Track(9), Genre(10), Composer(11), Comment(12)
+            int fieldStart = 5;
+            int fieldIdx = relY - fieldStart;
+            if (fieldIdx >= 0 && fieldIdx < 8) {
+                m_editFieldIndex = fieldIdx;
+                m_editing = true;
+                syncEditFields();
+                return true;
+            }
+            return true; // consume click even outside fields
+        }
+
         if (!m_editing) {
             if (event == Event::Return || event == Event::Character('e')) {
                 if (selectedFile()) {
