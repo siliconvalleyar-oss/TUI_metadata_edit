@@ -880,8 +880,19 @@ void TuiApp::run() {
                 onApply();
                 return true;
             }
+            if (event == Event::Character('e')) {
+                if (selectedFile()) {
+                    m_editing = true;
+                    m_editFieldIndex = 0;
+                }
+                return true;
+            }
             if (event == Event::Character('d')) {
                 onDiscardChanges();
+                return true;
+            }
+            if (event == Event::Character('r')) {
+                onRemoveArt();
                 return true;
             }
         }
