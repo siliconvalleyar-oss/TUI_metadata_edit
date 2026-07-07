@@ -640,13 +640,18 @@ void TuiApp::run() {
         if (event.is_mouse()) {
             auto &m = event.mouse();
 
-            // Click on table: select row using reflect box
+            // Click on table: select row, open dirs immediately
             if (m.button == Mouse::Left && m.motion == Mouse::Pressed) {
                 int relY = m.y - m_tableBox.y_min - 3; // 3 rows: toolbar + header + separator
                 int clickedRow = m_scrollOffset + relY;
                 if (clickedRow >= 0 && clickedRow < (int)m_entries.size()) {
                     m_selectedRow = clickedRow;
-                    syncEditFields(); updateStatusBar(); return true;
+                    syncEditFields();
+                    // If clicked on a directory, navigate into it
+                    if (m_entries[m_selectedRow].isDir) {
+                        enterEntry();
+                    }
+                    updateStatusBar(); return true;
                 }
                 // Click on detail panel: enter edit on field
                 if (m.x >= m_detailBox.x_min && m.x <= m_detailBox.x_max &&
