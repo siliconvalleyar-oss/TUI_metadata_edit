@@ -904,6 +904,7 @@ void TuiApp::run() {
             if (event == Event::Character('s')) { onToggleSelectAll(); return true; }
             if (event == Event::Character('r')) { onRemoveArt(); return true; }
             if (event == Event::Delete) { onDeleteFile(); return true; }
+            if (event == Event::Character(static_cast<char>(127))) { onDeleteFile(); return true; }
             if (event == Event::Character('e') && selectedFile()) {
                 m_editing = true; m_editFieldIndex = 0; return true;
             }
